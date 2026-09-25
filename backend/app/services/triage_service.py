@@ -3,6 +3,7 @@ import time
 
 from app.providers.triage.base import TriageProvider, TriageResult
 from app.providers.triage.rules import RuleBasedTriage
+from app.services.triage_observability import record_outcome
 
 logger = logging.getLogger("app")
 
@@ -21,6 +22,7 @@ def run_triage(provider: TriageProvider, text: str, location: str) -> TriageOutc
     try:
         result = provider.triage(text, location)
         latency_ms = int((time.monotonic() - start) * 1000)
+        record_outcome(provider.name, latency_ms, False)
         return TriageOutcome(
             result=result,
             triaged_by=provider.name,
@@ -28,12 +30,11 @@ def run_triage(provider: TriageProvider, text: str, location: str) -> TriageOutc
             fallback=False,
         )
     except Exception as exc:
-        logger.warning(
-            f"Triage fallback triggered: provider={provider.name} error={type(exc).__name__}"
-        )
+        logger.warning(f"Triage fallback triggered: provider={provider.name} error={type(exc).__name__}")
         fallback_provider = RuleBasedTriage()
         result = fallback_provider.triage(text, location)
         latency_ms = int((time.monotonic() - start) * 1000)
+        record_outcome("rules:fallback", latency_ms, True)
         return TriageOutcome(
             result=result,
             triaged_by="rules:fallback",
