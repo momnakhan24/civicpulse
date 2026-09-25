@@ -1,16 +1,22 @@
-﻿from pydantic_settings import BaseSettings
+﻿from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    app_env: str = "development"
-    database_url: str = "postgresql://user:pass@localhost:5432/civicpulse"
-    redis_url: str = "redis://localhost:6379/0"
-    triage_provider: str = "simulated"
-    groq_api_key: str = ""
-    ollama_host: str = "http://localhost:11434"
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    class Config:
-        env_file = ".env"
+    database_url: str
+    redis_url: str
+    triage_provider: str = "simulated"
+
+    groq_api_key: str = "changeme"
+    groq_model: str = "llama-3.1-8b-instant"
+    groq_base_url: str = "https://api.groq.com/openai/v1"
+
+    ollama_host: str = "http://localhost:11434"
+    ollama_model: str = "llama3.2:1b"
+
+    log_level: str = "INFO"
+    rate_limit_per_minute: int = 20
 
 
 settings = Settings()
