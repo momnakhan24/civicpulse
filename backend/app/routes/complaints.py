@@ -1,6 +1,7 @@
 ﻿import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -19,12 +20,23 @@ from app.services.complaint_service import (
     change_status,
     InvalidTransitionError,
 )
+from app.services.rate_limiter import is_rate_limited
 
 router = APIRouter(prefix="/api/complaints", tags=["complaints"])
 
 
 @router.post("", response_model=ComplaintResponse, status_code=201)
-def create_complaint_endpoint(payload: ComplaintCreate, db: Session = Depends(get_db)):
+def create_complaint_endpoint(payload: ComplaintCreate, request: Request, db: Session = Depends(get_db)):
+    client_ip = request.client.host if request.client else "unknown"
+    limited, retry_after = is_rate_limited(client_ip)
+
+    if limited:
+        return JSONResponse(
+            status_code=429,
+            content={"detail": "Rate limit exceeded"},
+            headers={"Retry-After": str(retry_after)},
+        )
+
     provider = get_triage_provider()
     complaint = submit_complaint(
         db, provider, payload.text, payload.location, payload.reporter_contact
