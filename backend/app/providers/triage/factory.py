@@ -3,6 +3,7 @@ from app.providers.triage.base import TriageProvider
 from app.providers.triage.rules import RuleBasedTriage
 from app.providers.triage.simulated import SimulatedTriage
 from app.providers.triage.llm import LLMTriage
+from app.providers.triage.ollama import OllamaTriage
 
 
 def get_triage_provider() -> TriageProvider:
@@ -14,5 +15,7 @@ def get_triage_provider() -> TriageProvider:
         return SimulatedTriage()
     if provider_name == "llm":
         return LLMTriage()
+    if provider_name == "ollama":
+        return OllamaTriage()
 
-    raise ValueError(f"Unknown or not-yet-wired TRIAGE_PROVIDER: {provider_name}")
+    raise ValueError(f"Unknown TRIAGE_PROVIDER: {provider_name}")
