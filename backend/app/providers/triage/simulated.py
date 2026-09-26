@@ -1,6 +1,6 @@
 ﻿import hashlib
 
-from app.providers.triage.base import TriageProvider, TriageResult, Category, Priority
+from app.providers.triage.base import TriageResult, Category, Priority
 
 
 class SimulatedTriage:

@@ -1,4 +1,4 @@
-﻿from app.providers.triage.base import TriageProvider, TriageResult, Category, Priority
+﻿from app.providers.triage.base import TriageResult, Category, Priority
 
 KEYWORDS: dict[Category, list[str]] = {
     Category.water: ["water", "pipe", "leak", "flood", "burst main", "sewage"],

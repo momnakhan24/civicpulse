@@ -53,17 +53,14 @@ def update_status(db: Session, complaint: Complaint, new_status: Status) -> Comp
 
 
 def get_stats(db: Session) -> dict:
-    by_category = dict(
-        db.execute(
-            select(Complaint.category, func.count()).group_by(Complaint.category)
-        ).all()
-    )
-    by_priority = dict(
-        db.execute(
-            select(Complaint.priority, func.count()).group_by(Complaint.priority)
-        ).all()
-    )
-    return {
-        "by_category": {k.value: v for k, v in by_category.items()},
-        "by_priority": {k.value: v for k, v in by_priority.items()},
-    }
+    category_rows = db.execute(
+        select(Complaint.category, func.count()).group_by(Complaint.category)
+    ).all()
+    by_category: dict[str, int] = {row[0].value: row[1] for row in category_rows}
+
+    priority_rows = db.execute(
+        select(Complaint.priority, func.count()).group_by(Complaint.priority)
+    ).all()
+    by_priority: dict[str, int] = {row[0].value: row[1] for row in priority_rows}
+
+    return {"by_category": by_category, "by_priority": by_priority}
