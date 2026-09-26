@@ -5,6 +5,7 @@ from app.routes.complaints import router as complaints_router
 from app.routes.ops import router as ops_router
 from app.routes.meta import router as meta_router
 from app.routes.metrics import router as metrics_router
+from app.routes.stats import router as stats_router
 
 setup_logging()
 
@@ -14,6 +15,7 @@ app.include_router(complaints_router)
 app.include_router(ops_router)
 app.include_router(meta_router)
 app.include_router(metrics_router)
+app.include_router(stats_router)
 
 
 @app.get("/")

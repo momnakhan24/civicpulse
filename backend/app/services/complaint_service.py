@@ -13,6 +13,7 @@ from app.repositories.complaint_repository import (
 )
 from app.services.triage_service import run_triage
 from app.services.state_machine import is_transition_allowed
+from app.services.cache_service import invalidate_stats_cache
 
 
 class InvalidTransitionError(Exception):
@@ -43,7 +44,9 @@ def submit_complaint(
         triage_latency_ms=outcome.latency_ms,
     )
 
-    return create_complaint(db, complaint)
+    saved = create_complaint(db, complaint)
+    invalidate_stats_cache()
+    return saved
 
 
 def get_complaint(db: Session, complaint_id: uuid.UUID) -> Complaint | None:
