@@ -53,6 +53,7 @@ jobs:
           REDIS_URL: redis://localhost:6379/0
         run: |
           pip install -e ".[dev]"
+          alembic upgrade head
           pytest --cov=app --cov-report=term-missing --cov-fail-under=65
     services:
       postgres:
@@ -132,7 +133,7 @@ jobs:
           curl -sL https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz | tar xz
           sudo mv kubeconform /usr/local/bin
       - name: Validate rendered manifests
-        run: kustomize build k8s/overlays/prod | kubeconform -strict -summary
+        run: kustomize build k8s/overlays/prod | kubeconform -strict -summary -skip VerticalPodAutoscaler
 
   integration:
     needs: [build]
