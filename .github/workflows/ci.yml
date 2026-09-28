@@ -172,12 +172,12 @@ jobs:
             | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])")
           curl -sf "http://localhost:8000/api/complaints/$id" | grep -q "water"
       - name: Check the stats cache goes MISS then HIT
-        run: |
-          echo "First request:"
-          curl -i http://localhost:8000/api/stats
-          echo ""
-          echo "Second request:"
-          curl -i http://localhost:8000/api/stats
+          run: |
+            echo "First request:"
+            curl -i http://localhost:8000/api/stats
+
+            echo "Second request:"
+            curl -i http://localhost:8000/api/stats
       - name: Tear down
         if: always()
         run: docker compose down -v
