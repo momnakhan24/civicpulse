@@ -156,14 +156,6 @@ jobs:
             sleep 2
           done
           echo "backend never became ready" && docker compose logs backend && exit 1
-      - name: Wait for backend readiness
-        run: |
-          for i in $(seq 1 30); do
-            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/ready || true)
-            [ "$code" = "200" ] && exit 0
-            sleep 2
-          done
-          echo "backend never became ready" && docker compose logs backend && exit 1
       - name: Submit a complaint and read it back
         run: |
           id=$(curl -s -X POST http://localhost:8000/api/complaints \
@@ -172,12 +164,12 @@ jobs:
             | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])")
           curl -sf "http://localhost:8000/api/complaints/$id" | grep -q "water"
       - name: Check the stats cache goes MISS then HIT
-          run: |
-            echo "First request:"
-            curl -i http://localhost:8000/api/stats
+        run: |
+          echo "First request:"
+          curl -i http://localhost:8000/api/stats
 
-            echo "Second request:"
-            curl -i http://localhost:8000/api/stats
+          echo "Second request:"
+          curl -i http://localhost:8000/api/stats
       - name: Tear down
         if: always()
         run: docker compose down -v
