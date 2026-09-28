@@ -1,0 +1,134 @@
+name: civicpulse
+
+networks:
+  edge:
+    driver: bridge
+  internal:
+    driver: bridge
+    internal: true   # no route to the outside world — protects postgres/redis
+
+volumes:
+  pgdata:
+  redisdata:
+  ollama_models:
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "5173:8080"
+    networks:
+      - edge
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+   
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  backend:
+    build:
+      context: ./backend
+    # Dev-only override: turns on autoreload (uvicorn[standard] ships watchfiles).
+    # The image's own CMD (no --reload) is what actually ships to prod/k8s.
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    volumes:
+      # Dev-only bind mount for hot reload. This has no place in compose.prod.yaml:
+      # prod runs the image exactly as built, so what you tested is what you ship.
+      - ./backend/app:/app/app
+    networks:
+      - edge      # can reach the internet here (e.g. the Groq API)
+      - internal  # can reach postgres/redis here; frontend cannot follow it in
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-civicpulse}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-civicpulse}
+      POSTGRES_DB: ${POSTGRES_DB:-civicpulse}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - internal
+    ports:
+      # Dev convenience only (so you can psql in from the host).
+      # Never carry a published DB port into compose.prod.yaml.
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-civicpulse}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    networks:
+      - internal
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+
+  # Optional offline triage path (TRIAGE_PROVIDER=ollama). Not started by default —
+  # run `docker compose --profile ollama up` to include it.
+  # NOTE / open question for your engineering notes: this sits on `internal`, so it
+  # has no route out to pull a model the first time. Either pull the model once with
+  # `internal: false` temporarily, or run `docker exec ollama ollama pull llama3.2:1b`
+  # before you flip this network back to internal-only. Decide and document.
+  ollama:
+    image: ollama/ollama:0.34.1  # TODO: pin to an exact version tag before submitting
+    profiles: ["ollama"]
+    volumes:
+      - ollama_models:/root/.ollama
+    networks:
+      - internal
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 2G

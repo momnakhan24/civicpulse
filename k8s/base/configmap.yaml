@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: civicpulse
+data:
+  REDIS_URL: "redis://redis:6379/0"
+  TRIAGE_PROVIDER: "simulated"
+  GROQ_MODEL: "openai/gpt-oss-20b"
+  GROQ_BASE_URL: "https://api.groq.com/openai/v1"
+  OLLAMA_HOST: "http://ollama:11434"
+  OLLAMA_MODEL: "llama3.2:1b"
+  LOG_LEVEL: "INFO"
+  RATE_LIMIT_PER_MINUTE: "20"
+  POSTGRES_DB: "civicpulse"
+  POSTGRES_USER: "civicpulse"

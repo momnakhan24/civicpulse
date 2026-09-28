@@ -1,0 +1,103 @@
+name: civicpulse
+
+networks:
+  edge:
+    driver: bridge
+  internal:
+    driver: bridge
+    internal: true
+
+volumes:
+  pgdata:
+  redisdata:
+
+services:
+  frontend:
+    image: ghcr.io/momnakhan24/civicpulse-frontend:${IMAGE_TAG}
+    networks:
+      - edge
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+
+  backend:
+    image: ghcr.io/momnakhan24/civicpulse-backend:${IMAGE_TAG}
+    # No command override here — this runs the image's own CMD exactly as built
+    # and scanned in CI. No bind mount either: what was tested is what ships.
+    env_file:
+      - .env
+    networks:
+      - edge
+      - internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          cpus: "0.2"
+          memory: 256M
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-civicpulse}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-civicpulse}
+      POSTGRES_DB: ${POSTGRES_DB:-civicpulse}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - internal
+    # No published port — unlike compose.yaml, prod never exposes the db to the host.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-civicpulse}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          cpus: "0.2"
+          memory: 256M
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    networks:
+      - internal
+    # No published port here either.
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+        reservations:
+          cpus: "0.1"
+          memory: 128M

@@ -1,0 +1,36 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: civicpulse
+
+resources:
+  - ../../base
+
+images:
+  - name: ghcr.io/momnakhan24/civicpulse-backend
+    newTag: dev
+  - name: ghcr.io/momnakhan24/civicpulse-frontend
+    newTag: dev
+
+patches:
+  - target:
+      kind: Deployment
+      name: backend
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+  - target:
+      kind: Deployment
+      name: frontend
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: backend-hpa
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 1

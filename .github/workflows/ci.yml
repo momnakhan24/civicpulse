@@ -1,0 +1,169 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [dev]
+  workflow_call:   # lets cd.yml re-run the full suite on the merged result
+
+permissions:
+  contents: read
+
+jobs:
+  lint-and-type:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Backend lint + type check
+        working-directory: backend
+        run: |
+          pip install -e ".[dev]"
+          ruff check .
+          mypy app
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+      - name: Frontend lint + type check
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run lint
+          npx tsc -b --noEmit
+
+  test-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run backend tests
+        working-directory: backend
+        env:
+          TRIAGE_PROVIDER: simulated
+          DATABASE_URL: postgresql+psycopg://civicpulse:civicpulse@localhost:5432/civicpulse
+          REDIS_URL: redis://localhost:6379/0
+        run: |
+          pip install -e ".[dev]"
+          pytest --cov=app --cov-report=term-missing --cov-fail-under=65
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: civicpulse
+          POSTGRES_PASSWORD: civicpulse
+          POSTGRES_DB: civicpulse
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U civicpulse"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+
+  test-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+      - name: Run frontend tests
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run test
+
+  build:
+    needs: [lint-and-type, test-backend, test-frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build backend image (not pushed)
+        run: docker build -t civicpulse-backend:ci ./backend
+      - name: Build frontend image (not pushed)
+        run: docker build -t civicpulse-frontend:ci ./frontend
+
+  scan:
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t civicpulse-backend:ci ./backend
+      - run: docker build -t civicpulse-frontend:ci ./frontend
+      - name: Scan backend image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: civicpulse-backend:ci
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-unfixed: true
+      - name: Scan frontend image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: civicpulse-frontend:ci
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-unfixed: true
+
+  manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install kustomize
+        run: |
+          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          sudo mv kustomize /usr/local/bin
+      - name: Install kubeconform
+        run: |
+          curl -sL https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz | tar xz
+          sudo mv kubeconform /usr/local/bin
+      - name: Validate rendered manifests
+        run: kustomize build k8s/overlays/prod | kubeconform -strict -summary
+
+  integration:
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Write .env for the integration run
+        run: |
+          cp .env.example .env
+          echo "TRIAGE_PROVIDER=simulated" >> .env
+      - name: Start the stack
+        run: docker compose up -d --build
+      - name: Wait for backend readiness
+        run: |
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/ready || true)
+            [ "$code" = "200" ] && exit 0
+            sleep 2
+          done
+          echo "backend never became ready" && docker compose logs backend && exit 1
+      - name: Submit a complaint and read it back
+        run: |
+          id=$(curl -s -X POST http://localhost:8000/api/complaints \
+            -H "Content-Type: application/json" \
+            -d '{"text":"Burst water main flooding Street 12 since fajr","location":"Street 12"}' \
+            | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])")
+          curl -sf "http://localhost:8000/api/complaints/$id" | grep -q "water"
+      - name: Check the stats cache goes MISS then HIT
+        run: |
+          curl -sI http://localhost:8000/api/stats | grep -i "x-cache: MISS"
+          curl -sI http://localhost:8000/api/stats | grep -i "x-cache: HIT"
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

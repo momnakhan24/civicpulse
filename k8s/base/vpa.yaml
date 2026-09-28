@@ -1,0 +1,18 @@
+# Recommender mode only (updateMode: "Off"): VPA never evicts or resizes anything here.
+# HPA scales on CPU utilization = usage ÷ request. If VPA ran in Auto mode alongside it,
+# VPA raising the request lowers computed utilization, which makes HPA scale in, which
+# raises per-pod load, which makes VPA raise the request again — the two fight over the
+# same signal. Recommender mode + a human decision (bump `requests` in backend.yaml
+# based on `kubectl describe vpa backend-vpa`) is the safe path.
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: backend-vpa
+  namespace: civicpulse
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: backend
+  updatePolicy:
+    updateMode: "Off"
