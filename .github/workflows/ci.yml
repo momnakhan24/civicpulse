@@ -146,6 +146,16 @@ jobs:
           echo "TRIAGE_PROVIDER=simulated" >> .env
       - name: Start the stack
         run: docker compose up -d --build
+      - name: Run database migrations
+        run: docker compose exec -T backend alembic upgrade head
+      - name: Wait for backend readiness
+        run: |
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/ready || true)
+            [ "$code" = "200" ] && exit 0
+            sleep 2
+          done
+          echo "backend never became ready" && docker compose logs backend && exit 1
       - name: Wait for backend readiness
         run: |
           for i in $(seq 1 30); do
