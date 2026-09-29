@@ -75,8 +75,8 @@ jobs:
       - name: Install VPA
         run: |
           kubectl apply -f https://raw.githubusercontent.com/kubernetes/autoscaler/vertical-pod-autoscaler/master/deploy/vpa-v1-crd-gen.yaml
-    kubectl apply -f https://raw.githubusercontent.com/kubernetes/autoscaler/vertical-pod-autoscaler/master/deploy/vpa-rbac.yaml
-    kubectl apply -f https://raw.githubusercontent.com/kubernetes/autoscaler/vertical-pod-autoscaler/master/deploy/vpa-v1-deployment.yaml
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes/autoscaler/vertical-pod-autoscaler/master/deploy/vpa-rbac.yaml
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes/autoscaler/vertical-pod-autoscaler/master/deploy/vpa-v1-deployment.yaml
       - name: Install kustomize
         run: |
           curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
