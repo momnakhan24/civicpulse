@@ -17,6 +17,4 @@ class Settings(BaseSettings):
 
     log_level: str = "INFO"
     rate_limit_per_minute: int = 10
-
-
 settings = Settings()
