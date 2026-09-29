@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     ollama_model: str = "llama3.2:1b"
 
     log_level: str = "INFO"
-    rate_limit_per_minute: int = 20
+    rate_limit_per_minute: int = 10
 
 
 settings = Settings()
